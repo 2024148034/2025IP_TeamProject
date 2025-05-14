@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>공연 등록</title>
+  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=fa9d8f4e38b61f735d13f29ec2ef6cc3"></script>
+</head>
+<body>
+  <h2>공연 등록</h2>
+  <form id="submitForm">
+    <input type="text" id="title" placeholder="공연 제목" required><br>
+    <input type="text" id="location" placeholder="장소명" required><br>
+    <input type="datetime-local" id="time" required><br>
+    <textarea id="desc" placeholder="공연 설명"></textarea><br>
+    <button type="submit">등록하기</button>
+  </form>
+  <div id="map" style="width:100%; height:500px; margin-top:20px;"></div>
+  <script src="main.js"></script>
+</body>
+</html>
