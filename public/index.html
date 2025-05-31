@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>문서 읽어주는 앱 (OCR + 쉬운 말)</title>
+</head>
+<body>
+<h1>문서 사진 업로드</h1>
+<input type="file" accept="image/*" id="fileInput" capture="camera">
+<button onclick="upload()">업로드</button>
+
+<h2>OCR 결과</h2>
+<pre id="ocr"></pre>
+
+<h2>쉬운 문장</h2>
+<pre id="easy"></pre>
+
+<script>
+function upload() {
+  const file = document.getElementById('fileInput').files[0];
+  const formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/process', { method: 'POST', body: formData })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById('ocr').innerText = data.ocr;
+      document.getElementById('easy').innerText = data.easy;
+    });
+}
+</script>
+</body>
+</html>
