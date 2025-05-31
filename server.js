@@ -4,7 +4,6 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const FormData = require('form-data');
-const fetch = require('node-fetch');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -28,7 +27,7 @@ app.post('/process', upload.single('file'), async (req, res) => {
       body: form
     });
     const ocrData = await ocrResponse.json();
-    const ocrText = ocrData.ParsedResults[0].ParsedText;
+    const ocrText = ocrData.ParsedResults?.[0]?.ParsedText || 'OCR 실패';
 
     // GPT API 호출 (쉬운 말로 변환)
     const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
