@@ -3,49 +3,67 @@ require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
-const FormData = require('form-data');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-app.use(express.static('public')); // public 폴더 제공
+app.use(express.static('public'));
 
 app.post('/process', upload.single('file'), async (req, res) => {
   try {
     const filePath = req.file.path;
 
-    // OCR.Space API 요청 준비
-    const form = new FormData();
-    form.append('file', fs.createReadStream(filePath));
-    form.append('language', 'kor');
-    form.append('isOverlayRequired', 'false');
-    form.append('apikey', process.env.OCR_SPACE_API_KEY);
+    // ✅ 이미지 Base64 인코딩
+    const imageData = fs.readFileSync(filePath);
+    const base64Image = imageData.toString('base64');
 
-    console.log("🔍 OCR API 호출 시작");
+    // ✅ CLOVA OCR 요청 JSON body
+    const bodyData = {
+      images: [
+        {
+          format: 'jpg', // 필요하면 png 등으로 변경
+          name: 'sample_image',
+          data: base64Image
+        }
+      ],
+      requestId: 'test-request',
+      version: 'V2',
+      timestamp: Date.now()
+    };
+    
+    console.log("🔍 CLOVA OCR API 호출 시작");
 
-    // OCR.Space API 호출
-    const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
+    // ✅ CLOVA OCR API 요청
+    const response = await fetch(process.env.NAVER_API_INVOKE_URL, {
       method: 'POST',
-      body: form,
       headers: {
-        ...form.getHeaders()
-      }
+        'X-OCR-SECRET': process.env.NAVER_API_SECRET_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(bodyData)
     });
 
-    // 응답 타입 확인 (json or text)
-    const contentType = ocrResponse.headers.get('content-type');
+    const ocrData = await response.json();
+    console.log("✅ CLOVA OCR 응답:", ocrData);
+
+    // ✅ OCR 결과 안전 처리
     let ocrText = '';
-    if (contentType && contentType.includes('application/json')) {
-      const ocrData = await ocrResponse.json();
-      console.log("✅ OCR 결과:", ocrData);
-      ocrText = ocrData.ParsedResults?.[0]?.ParsedText || 'OCR 실패';
+    if (
+      ocrData.images &&
+      ocrData.images[0] &&
+      ocrData.images[0].fields &&
+      Array.isArray(ocrData.images[0].fields)
+    ) {
+      const words = ocrData.images[0].fields.map(field => field.inferText);
+      ocrText = words.join(' ');
     } else {
-      const textData = await ocrResponse.text();
-      console.log("❌ OCR 오류 응답:", textData);
-      throw new Error('OCR API 응답이 JSON이 아님');
+      ocrText = 'OCR 결과 없음';
     }
 
-    // GPT API 호출 (쉬운 말 변환)
+    console.log(ocrText);
+    
+
+    // ✅ GPT API 호출 (쉬운 말 변환)
     console.log("🔍 GPT API 호출 시작");
     const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -54,24 +72,37 @@ app.post('/process', upload.single('file'), async (req, res) => {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o',
         messages: [
           { role: 'system', content: '당신은 어려운 문서를 쉽게 풀어주는 도우미입니다.' },
-          { role: 'user', content: `아래 문서를 초등학생도 이해할 수 있도록 바꿔줘:\n${ocrText}` }
+          { role: 'user', content: '아래 문서는 각종 고지서, 청구서, 안내문과 같은 공문의 내용이야. 단어 단위로 끊긴 상태인데, 이를 문장처럼 다시 정리해서 문해력과 어휘력이 부족한 사람도 쉽게 이해할 수 있도록 바꿔줘:\n${ocrText}' }
         ]
       })
     });
 
     const gptData = await gptResponse.json();
-    const easyText = gptData.choices[0].message.content;
+    console.log("✅ GPT 응답:", gptData);
 
-    // 클라이언트로 응답
+    // ✅ GPT 응답 안전 처리
+    let easyText = '';
+    if (
+      gptData.choices &&
+      gptData.choices[0] &&
+      gptData.choices[0].message &&
+      gptData.choices[0].message.content
+    ) {
+      easyText = gptData.choices[0].message.content;
+    } else {
+      easyText = 'GPT 변환 실패';
+    }
+
+    // ✅ 클라이언트로 응답
     res.json({
       ocr: ocrText,
       easy: easyText
     });
 
-    // 업로드된 파일 삭제
+    // ✅ 업로드된 파일 삭제
     fs.unlinkSync(filePath);
   } catch (error) {
     console.error(error);
